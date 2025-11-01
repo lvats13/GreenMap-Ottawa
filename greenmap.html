@@ -1,0 +1,242 @@
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>GreenMap Ottawa 🌿</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<style>
+:root{
+  --bg:#eef7ef; 
+  --card:#ffffff; 
+  --muted:#556a56; 
+  --green-1:#2e7d32; 
+  --green-2:#6ca96b; 
+  --accent-soft: rgba(110,176,115,0.14); 
+}
+html,body{height:100%; margin:0; font-family:Inter, "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background: linear-gradient(180deg,#f7fbf8 0%,var(--bg) 40%); color:#132313;}
+header{ position:relative; padding:28px 20px; text-align:center; background: linear-gradient(90deg,var(--green-1),var(--green-2)); color: #fff; box-shadow: 0 8px 28px rgba(15,35,16,0.18); overflow:visible; }
+header h1{margin:0;font-size:1.9rem; letter-spacing:0.4px; font-weight:700; display:inline-block; padding:6px 12px; border-radius:10px;}
+header p{margin:8px 0 0 0; opacity:0.95;}
+.header-actions{margin-top:12px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
+.btn{ background:var(--green-2); color:white; border:none; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:700; box-shadow: 0 8px 18px rgba(46,125,50,0.12); transition: transform .14s ease, box-shadow .14s ease; }
+.btn:hover{transform:translateY(-3px); box-shadow:0 14px 28px rgba(46,125,50,0.14);}
+
+/* floating leaves */
+.leaf { position:absolute; width:160px; height:160px; background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path fill="%23FFFFFF" fill-opacity="0.07" d="M10 60c30-50 80-50 100-30-40 40-40 80-100 30z"/></svg>') center/contain no-repeat; top:12px; left:12px; pointer-events:none; opacity:0.95; transform:rotate(-8deg); animation: floatyLarge 12s ease-in-out infinite; filter: drop-shadow(0 8px 20px rgba(35,80,35,0.06)); } 
+.leaf.leaf-2{right:18px; left:auto; top:6px; transform:rotate(8deg); opacity:0.92; animation-duration:14s} 
+.leaf.leaf-3{left:50%; top: -18px; width:220px; height:220px; opacity:0.22; transform:translateX(-50%);} 
+@keyframes floatyLarge{ 0%{transform:translateY(0) rotate(-6deg)} 50%{transform:translateY(18px) rotate(6deg)} 100%{transform:translateY(0) rotate(-6deg)} }
+
+/* layout */
+#controls { display:flex; gap:12px; align-items:center; justify-content:center; margin:14px 10px; flex-wrap:wrap;}
+#filters { display:flex; gap:8px; align-items:center; } 
+.filter-pill{ padding:8px 12px; border-radius:999px; background:var(--card); border:1px solid rgba(31,42,31,0.06); cursor:pointer; transition:transform .12s ease, box-shadow .12s; font-weight:700; color:var(--muted); } 
+.filter-pill.active{ background:linear-gradient(90deg,var(--green-1),var(--green-2)); color:white; transform:translateY(-3px); box-shadow:0 10px 26px rgba(46,125,50,0.12);} 
+
+#mapwrap{ width:92%; max-width:1300px; margin:8px auto 48px; display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; justify-content:center;} 
+#map{ height:72vh; min-height:520px; flex:1 1 700px; border-radius:16px; overflow:hidden; box-shadow:0 18px 60px rgba(2,18,6,0.06); border:1px solid rgba(5,30,5,0.04); background:linear-gradient(180deg,#eaf7ec, transparent 40%); }
+
+/* saved button */ 
+#savedBtn{ position:fixed; right:22px; bottom:22px; z-index:9999; width:66px; height:66px; border-radius:16px; background:linear-gradient(180deg,#ffffff,#f1fff1); display:flex; align-items:center; justify-content:center; box-shadow:0 12px 34px rgba(46,125,50,0.12); cursor:pointer; transition:transform .12s;} 
+#savedBtn:hover{transform:translateY(-6px)} 
+#savedPopup{ position:fixed; right:22px; bottom:106px; z-index:10000; width:360px; max-height:62vh; overflow:auto; background:var(--card); border-radius:12px; padding:14px; box-shadow:0 22px 60px rgba(6,24,8,0.12); display:none;} 
+#savedPopup h3{margin:0 0 8px 0; font-size:1.05rem;} 
+.saved-item{display:flex; gap:8px; align-items:center; padding:8px 6px; border-radius:8px;} 
+.saved-item img{width:64px; height:48px; object-fit:cover; border-radius:8px;} 
+.saved-item button{background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:16px;} 
+
+/* modal */ 
+.modal{ display:none; position:fixed; inset:0; z-index:12000; align-items:center; justify-content:center; background:rgba(7,12,7,0.42); } 
+.modal.show{ display:flex; } 
+.modal-card{ width: min(720px, 96%); background:var(--card); border-radius:14px; padding:16px; box-shadow:0 30px 90px rgba(6,24,8,0.18); transform: translateY(10px) scale(.98); opacity:0; transition: all .28s cubic-bezier(.16,.8,.24,1); } 
+.modal.show .modal-card{ transform: translateY(0) scale(1); opacity:1; } 
+.modal-row{ display:flex; gap:14px; align-items:flex-start; } 
+.place-photo{ width:46%; border-radius:12px; object-fit:cover; max-height:360px; } 
+.place-info{ flex:1; } 
+.place-info h2{ margin:0 0 6px 0; font-size:1.25rem; } 
+.meta{ color:var(--muted); font-size:0.95rem; margin-bottom:10px; } 
+.meta a{ color:var(--green-1); text-decoration:none; font-weight:700 } 
+.place-actions{ display:flex; gap:10px; margin-top:12px; align-items:center; } 
+.heart { width:48px; height:48px; border-radius:12px; background:var(--green-2); color:white; display:inline-flex; align-items:center; justify-content:center; font-size:20px; cursor:pointer; border:none; box-shadow:0 12px 30px rgba(46,125,50,0.16); transition:transform .12s; } 
+.heart.saved{ background: linear-gradient(90deg,#ffd96b,#ffc857); color:#2f2f2f; transform:scale(1.06); } 
+.small-btn{ background: #f3f8f4; border-radius:10px; padding:9px 12px; border:none; cursor:pointer; color:var(--muted); font-weight:700; } 
+
+/* marker pulse animation */ 
+.pulse-marker .pulse { width:16px; height:16px; background:#2e7d32; border-radius:50%; position:relative; box-shadow:0 0 0 0 rgba(46,125,50,0.7); animation: pulse 1.4s infinite cubic-bezier(0.66, 0, 0, 1); } 
+@keyframes pulse { 0% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(46,125,50,0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 20px rgba(46,125,50,0); } 100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(46,125,50,0); } }
+
+/* small responsive tweaks */ 
+@media (max-width:900px){ .modal-row{ flex-direction:column; } .place-photo{ width:100%; max-height:260px; } #savedPopup{ right:10px; left:10px; width:auto; max-width:420px; } } 
+
+/* map popup tweaks */ 
+.leaflet-popup-content-wrapper{ border-radius:12px; box-shadow:0 12px 30px rgba(6,24,8,0.12) !important; } 
+.leaflet-container{ background:linear-gradient(180deg,#e9f7ec, transparent 40%); } 
+
+/* header title pulse */ 
+.title-pulse{ display:inline-block; animation: pulseHue 3.6s ease-in-out infinite; background: linear-gradient(90deg, rgba(255,255,255,0.05), rgba(255,255,255,0.06)); padding:6px 12px; border-radius:10px; } 
+@keyframes pulseHue{ 0%{ box-shadow: 0 0 0 0 rgba(255,255,255,0); transform:translateY(0)} 50%{ box-shadow: 0 10px 30px rgba(255,255,255,0.06); transform:translateY(-2px)} 100%{ box-shadow: 0 0 0 0 rgba(255,255,255,0); transform:translateY(0)} }
+</style>
+</head>
+<body>
+<header>
+  <div class="leaf"></div>
+  <div class="leaf leaf-2"></div>
+  <div class="leaf leaf-3"></div>
+  <h1 class="title-pulse">GreenMap Ottawa 🌿</h1>
+  <p>Explore local eco-friendly shops, restaurants, markets and gardens — save favourites and show seasonal codes.</p>
+  <div class="header-actions" id="controls">
+    <div id="filters" aria-hidden="false" role="toolbar" aria-label="Category filters">
+      <button class="filter-pill active" data-filter="All">All</button>
+      <button class="filter-pill" data-filter="Shop">Shops</button>
+      <button class="filter-pill" data-filter="Restaurant">Restaurants</button>
+      <button class="filter-pill" data-filter="Market">Markets</button>
+      <button class="filter-pill" data-filter="Garden">Gardens</button>
+      <button class="filter-pill" data-filter="Scenic">Scenic</button>
+    </div>
+  </div>
+</header>
+<div id="mapwrap">
+  <div id="map"></div>
+</div>
+<button id="savedBtn" title="Saved places">💚</button>
+<div id="savedPopup" role="dialog" aria-modal="false">
+  <h3>Saved places</h3>
+  <div id="savedList"></div>
+  <div style="text-align:right; margin-top:10px;">
+    <button class="small-btn" onclick="clearSaved()">Clear</button>
+  </div>
+</div>
+<div id="modal" class="modal" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+      <div style="flex:1"><h2 id="modalTitle">Place name</h2><div class="meta" id="modalSub">Category • tags</div></div>
+      <div style="text-align:right"><button onclick="closeModal()" class="small-btn">Close</button></div>
+    </div>
+    <div class="modal-row" style="margin-top:8px;">
+      <img id="modalPhoto" class="place-photo" src="" alt="photo">
+      <div class="place-info">
+        <p id="modalDesc">Description</p>
+        <div class="meta" id="modalAddress">Address</div>
+        <div class="meta" id="modalPhone">Phone</div>
+        <div class="meta" id="modalWebsite">Website</div>
+        <div style="margin-top:12px;">
+          <strong>Seasonal code:</strong>
+          <div id="modalCode" style="margin-top:6px; padding:10px; border-radius:8px; background:var(--accent-soft); color:var(--green-1); font-weight:800; display:inline-block;"></div>
+        </div>
+        <div class="place-actions">
+          <button id="heartBtn" class="heart" title="Save">♡</button>
+          <button class="small-btn" id="openMapBtn">Center map</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+/* ------------------ Data: places ------------------ */
+const locations = [
+  {id:1, name:"Terra20", coords:[45.414079,-75.642853], type:"Shop", desc:"Eco-friendly goods, refills and sustainable lifestyle products.", phone:"(613) 860 5656", website:"https://terra20.com", address:"197 Trainyards Dr Unit 5", photo:"https://assets.obj.ca/2022/07/CHiJIus4-terra20-Train-Yards.jpg", seasonalCode:"N/A", scenic:false},
+  {id:2, name:"Pure Kitchen", coords:[45.415845,-75.688960], type:"Restaurant", desc:"Healthy, plant-based and organic meals.", phone:"(613) 233 7873", website:"https://www.purekitchenottawa.com", address:"340 Elgin St", photo:"https://www.canadaculinary.com/images/experiences/ontario/ottawa/Pure-Kitchen-West-location-03291-credit-Pure-Kitchen.jpeg", seasonalCode:"N/A", scenic:false},
+  {id:3, name:"Purple Urchin", coords:[45.393984,-75.683529], type:"Shop", desc:"Handmade soaps & small-batch skincare.", phone:"(613) 680 6889", website:"https://www.purpleurchinsoap.com", address:"1094 Bank St", photo:"https://glebereport.ca/wp-content/uploads/2022/02/PurpleUrchin-2.jpg", seasonalCode:"N/A", scenic:false},
+  {id:4, name:"Herb and Spice", coords:[45.413978,-75.694709], type:"Shop", desc:"Natural & organic pantry staples and spices.", phone:"(613) 232 4087", website:"https://www.herbandspiceshop.com", address:"375 Bank St", photo:"https://images.happycow.net/venues/1024/13/35/hcmp1335_1649389.jpeg", seasonalCode:"N/A", scenic:false},
+  {id:5, name:"Dominion Arboretum", coords:[45.394887,-75.713549], type:"Scenic", desc:"The Dominion Arboretum — explore gardens and outdoor beauty.", phone:"(613) 759 1982", website:"https://gardensottawa.ca/gardens/the-dominion-arboretum-at-the-central-experimental-farmthe-dominion-arboretum-at-the-central-experimental-farm/", address:"Arboretum, Ottawa ON K1A 0C6", photo:"https://imgcld.yatra.com/ytimages/image/upload/v1480914061/Ottawa_Dominion_Arboretum_Attractions.jpg", seasonalCode:"N/A", scenic:true},
+  {id:6, name:"Major Hill Park", coords:[45.427806,-75.696465], type:"Scenic", desc:"Historic park with views of Parliament and the Ottawa River.", phone:"(800) 465 1867", website:"https://ncc-ccn.gc.ca/places/majors-hill-park", address:"462 Mackenzie Ave", photo:"https://ncc-website-2.s3.amazonaws.com/images/MG_9026.jpg", seasonalCode:"N/A", scenic:true},
+  {id:7, name:"Ottawa Farmer’s Market", coords:[45.399873,-75.683294], type:"Market", desc:"Fresh local produce and artisanal goods.", phone:"(613) 417 3595", website:"https://ottawafarmersmarket.ca/lansdowne-market/", address:"1000 Exhibition Way", photo:"https://ottawafarmersmarket.ca/wp-content/uploads/slider/cache/65a16428067d75c7a8874fe4816feb5f/Lansdowne-Market.jpg", seasonalCode:"N/A", scenic:false},
+  {id:8, name:"Lansdowne Park", coords:[45.398905,-75.683818], type:"Scenic", desc:"Lansdowne Park — events, markets, and sports.", phone:"", website:"https://www.tdplace.ca/lansdowne-park/", address:"1015 Bank Street", photo:"https://cdn-ilbbpib.nitrocdn.com/RTgjPIEAJikGzhMGbnHTAQFBWcvyNUoC/assets/images/optimized/rev-a2ae61f/www.tdplace.ca/wp-content/uploads/2016/08/lansdowne-park-arial-shot.jpg", seasonalCode:"N/A", scenic:false},
+  {id:9, name:"Green Door", coords:[45.408169,-75.677639], type:"Restaurant", desc:"Organic, locally-sourced vegetarian dining.", phone:"(613) 234 9597", website:"https://thegreendoor.ca", address:"198 Main Street", photo:"https://cdn.activifinder.com/media/blocks/images/the-green-door-restaurant-bakery-Ccv577Ol.large.webp", seasonalCode:"N/A", scenic:false},
+  {id:10, name:"Rideau Canal", coords:[45.425831,-75.69722], type:"Scenic", desc:"Rideau Canal — boating, walking, and outdoor activities.", phone:"(613) 283 5170", website:"https://parks.canada.ca/lhn-nhs/on/rideau", address:"34 Beckwith Street South, Smiths Falls", photo:"https://tse1.mm.bing.net/th/id/OIP.UTySPEUCjZ_k6ot_E4lDDgHaFU?rs=1&pid=ImgDetMain&o=7&rm=3", seasonalCode:"N/A", scenic:true},
+  {id:11, name:"Dow's Lake Pavillion", coords:[45.397730,-75.705583], type:"Scenic", desc:"Scenic lake on the Rideau Canal — paddle, walk and enjoy the pavilion.", phone:"(613) 232 1001", website:"https://www.dowslake.com/about_the_pavillion.php", address:"1001 Queen Elizabeth Dr", photo:"https://img.marinas.com/v2/821710522af165a7d2eecdd5eb17208b0394738dbeafe1c8e60be53c9ad9c35e.jpg", seasonalCode:"N/A", scenic:true},
+  {id:12, name:"NU Grocery", coords:[45.410230,-75.678600], type:"Shop", desc:"Zero-waste grocery with bulk and package-free goods.", phone:"(613) 233 0678", website:"https://nugrocery.com", address:"6-143 Main St", photo:"https://arca-verde.ca/wp/wp-content/uploads/2019/01/NuGrocery-13-WEB.jpg", seasonalCode:"N/A", scenic:false},
+  {id:13, name:"Pure Power Juice Bar", coords:[45.427709,-75.692541], type:"Shop", desc:"Fresh cold-pressed juices and smoothies.", phone:"(613) 244 7383", website:"", address:"55 Byward Market Sq", photo:"https://s3-media0.fl.yelpcdn.com/bphoto/Ehkw54ssCXcowNHagd1NQQ/l.jpg", seasonalCode:"N/A", scenic:false},
+  {id:14, name:"Brewer Community Garden", coords:[45.390187,-75.690644], type:"Garden", desc:"Community garden for residents to grow produce.", phone:"(613) 974 4567", website:"https://sites.google.com/brewergarden.ca/brewergarden", address:"184 Hopewell Ave", photo:"https://th.bing.com/th/id/R.1e57f0583653f3ac6132d3e72265fcda?rik=d9%2fdltWFRI5iOQ&riu=http%3a%2f%2fspacing.ca%2fottawa%2fwp-content%2fuploads%2fsites%2f7%2f2014%2f10%2fBP1-600x401.jpg&ehk=21eFuBckGh9EB4pMuLcDRlXtnwL1rSa51sEwY%2fPpjFw%3d&risl=&pid=ImgRaw&r=0", seasonalCode:"N/A", scenic:false},
+  {id:15, name:"Centretown Community Garden", coords:[45.415368,-75.701374], type:"Garden", desc:"Urban community garden in Centretown.", phone:"", website:"https://glebereport.ca/articles/centretown-community-garden-neighbours-helping-neighbours/", address:"455 Lisgar St", photo:"https://th.bing.com/th/id/OIP.QEgoW6OdlHOGW4azBpeuXAHaFl?w=219&h=180&c=7&r=0&o=7&pid=1.7&rm=3", seasonalCode:"N/A", scenic:false},
+  {id:16, name:"Parkdale Market", coords:[45.401351,-75.729967], type:"Market", desc:"Local public market with vendors and food stalls.", phone:"(613) 244 4410", website:"https://parkdalepublicmarket.ca/", address:"366 Parkdale Ave", photo:"https://images.squarespace-cdn.com/content/v1/653fc77f40b5a16dd3a41392/61e4412f-e638-495e-9d4a-fa2817b220ea/asset+1.jpeg", seasonalCode:"N/A", scenic:false}
+];
+
+/* ------------------ Map setup ------------------ */
+const map = L.map('map').setView([45.4215,-75.6972], 13);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+/* ------------------ Green Leaflet Icon ------------------ */
+const greenIcon = L.icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    iconSize: [25,41],
+    iconAnchor: [12,41],
+    popupAnchor: [1,-34],
+    shadowSize: [41,41]
+});
+
+/* ------------------ Marker management ------------------ */
+let markerObjs = [];
+function addMarkers(filter="All"){
+  markerObjs.forEach(m=>map.removeLayer(m.marker));
+  markerObjs = [];
+  const filtered = locations.filter(loc => filter==="All"||loc.type===filter);
+  filtered.forEach(loc=>{
+    const marker = L.marker(loc.coords,{icon:greenIcon, riseOnHover:true}).addTo(map);
+    marker.on('click',()=>openPlaceModal(loc.id));
+    markerObjs.push({marker, loc});
+  });
+}
+addMarkers();
+
+/* ------------------ Filters ------------------ */
+document.querySelectorAll(".filter-pill").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    document.querySelectorAll(".filter-pill").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    const filter = btn.dataset.filter;
+    addMarkers(filter);
+  });
+});
+
+/* ------------------ Modal ------------------ */
+const modal = document.getElementById('modal');
+function openPlaceModal(id){
+  const loc = locations.find(l=>l.id===id);
+  document.getElementById('modalTitle').textContent = loc.name;
+  document.getElementById('modalSub').textContent = loc.type;
+  document.getElementById('modalDesc').textContent = loc.desc;
+  document.getElementById('modalPhoto').src = loc.photo;
+  document.getElementById('modalAddress').textContent = loc.address;
+  document.getElementById('modalPhone').textContent = loc.phone;
+  document.getElementById('modalWebsite').innerHTML = loc.website?`<a href="${loc.website}" target="_blank">${loc.website}</a>`:'';
+  document.getElementById('modalCode').textContent = loc.seasonalCode || 'N/A';
+  const heart = document.getElementById('heartBtn');
+  heart.classList.toggle('saved', savedPlaces.includes(loc.id));
+  heart.onclick = ()=>toggleSaved(loc.id, heart);
+  document.getElementById('openMapBtn').onclick = ()=>{ map.setView(loc.coords,15); };
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden','false');
+}
+function closeModal(){ modal.classList.remove('show'); modal.setAttribute('aria-hidden','true'); }
+
+/* ------------------ Saved places ------------------ */
+let savedPlaces = [];
+const savedList = document.getElementById('savedList');
+function toggleSaved(id, btn){
+  if(savedPlaces.includes(id)){ savedPlaces = savedPlaces.filter(x=>x!==id); btn.classList.remove('saved'); }
+  else{ savedPlaces.push(id); btn.classList.add('saved'); }
+  renderSaved();
+}
+function renderSaved(){
+  savedList.innerHTML='';
+  savedPlaces.forEach(id=>{
+    const loc = locations.find(l=>l.id===id);
+    const div = document.createElement('div');
+    div.className='saved-item';
+    div.innerHTML=`<img src="${loc.photo}"><span>${loc.name}</span><button onclick="toggleSaved(${id},document.getElementById('heartBtn'))">×</button>`;
+    savedList.appendChild(div);
+  });
+}
+function clearSaved(){ savedPlaces=[]; renderSaved(); }
+document.getElementById('savedBtn').onclick=()=>{ 
+  const popup = document.getElementById('savedPopup'); 
+  popup.style.display = popup.style.display==='block'?'none':'block'; 
+};
+window.onclick=(e)=>{ if(e.target===modal) closeModal(); }
+</script>
+</body>
+</html>
